@@ -15,4 +15,8 @@ public enum DataExChangeState {
     case StartNotify
     case StopNotify
     case ReceiveReadRequest
+    case ConnectDeviceSuccess
+    case ConnectDeviceFaild
+    case NoServices
+    case NotifySuccess
 }

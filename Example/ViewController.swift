@@ -12,7 +12,6 @@ import BleDataExchange
 class ViewController: UIViewController, BleDataExchangeDelegate {
     
     @IBOutlet weak var messageTextField: UITextField!
-    @IBOutlet weak var logTextView: UITextView!
     
     private let bleDataExchange: BleDataExchange = BleDataExchange()
     
@@ -47,8 +46,10 @@ class ViewController: UIViewController, BleDataExchangeDelegate {
         print(error)
     }
     
-    func receive(error: Error) {
-        
+    func receive(data: Data?) {
+        if let sendData = data {
+            print(NSString(data: sendData, encoding: String.Encoding.utf8.rawValue)!)
+        }
     }
     
     func state(state: DataExChangeState) {

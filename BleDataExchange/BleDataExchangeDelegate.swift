@@ -10,6 +10,6 @@ import Foundation
 
 public protocol BleDataExchangeDelegate {
     func bleDataExchangeError(error: Error)
-    func receive(error: Error)
+    func receive(data: Data?)
     func state(state: DataExChangeState)
 }

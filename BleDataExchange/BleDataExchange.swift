@@ -72,7 +72,6 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
         stopAdvertise()
     }
     
-    /// send data
     open func send(data: String) {
         let sendData = data.data(using: String.Encoding.utf8)
         self.characteristic.value = sendData;
@@ -89,6 +88,8 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
         }
     }
     
+    // MARK: - init
+
     private func initPeripheral() {
         let peripheralQueue = DispatchQueue(label: "com.gupuru.BleDataExchange.peripheral")
         let peripheralOptions = [
@@ -105,13 +106,15 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
         self.centralManager = CBCentralManager(delegate: self, queue: centralQueue, options: centralOptions)
     }
     
+    // MARK: - CBCentralManagerDelegate
+    
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
                 let options: [String : Bool] = [
                     CBCentralManagerScanOptionAllowDuplicatesKey : false
                 ]
-                //scan開始
+                //start scan
                 self.centralManager.scanForPeripherals(withServices: _serviceUUID, options: options)
         default:
             break
@@ -119,45 +122,40 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
     }
     
     public func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral, advertisementData: [String : Any], rssi RSSI: NSNumber) {
-        
-        
-        print("発見したBLEデバイス: \(peripheral)")
-
         self.peripheral = peripheral
-        // 接続開始
+        // connrct device
         self.centralManager.connect(self.peripheral, options: nil)
     }
     
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        print("接続成功！")
+        delegate?.state(state: .ConnectDeviceSuccess)
         peripheral.delegate = self
-        // サービス探索開始
+        //discover services
         peripheral.discoverServices(nil)
     }
     
     public func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-        print("接続失敗・・・")
+        delegate?.state(state: .ConnectDeviceFaild)
     }
     
+    public func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
+    }
+    
+    // MARK: - CBPeripheralDelegate
+    
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
-        
-        if (error != nil) {
-            print("エラー: \(error)")
+        if error != nil {
+            delegate?.bleDataExchangeError(error: error!)
             return
         }
         
         if !((peripheral.services?.count)! > 0) {
-            print("no services")
+            delegate?.state(state: .NoServices)
             return
         }
         
         let services = peripheral.services!
-        
-        print("\(services.count) 個のサービスを発見！ \(services)")
-        
         for service in services {
-            
-            // キャラクタリスティック探索開始
             peripheral.discoverCharacteristics(nil, for: service)
         }
     }
@@ -166,20 +164,18 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
                     didDiscoverCharacteristicsFor service: CBService,
                     error: Error?)
     {
-        if (error != nil) {
-            print("エラー: \(error)")
+        if error != nil {
+            delegate?.bleDataExchangeError(error: error!)
             return
         }
         
         if !((service.characteristics?.count)! > 0) {
-            print("no characteristics")
             return
         }
         
         let characteristics = service.characteristics!
         
         for characteristic in characteristics {
-                // 更新通知受け取りを開始する
             peripheral.setNotifyValue(
                 true,
                 for: characteristic)
@@ -191,33 +187,24 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
                     error: Error?)
     {
         if error != nil {
-            
-            print("Notify状態更新失敗...error: \(error)")
-        }
-        else {
-            print("Notify状態更新成功！characteristic UUID:\(characteristic.uuid), isNotifying: \(characteristic.isNotifying)")
+            delegate?.bleDataExchangeError(error: error!)
+        } else {
+            delegate?.state(state: .NotifySuccess)
         }
     }
     
-    // データ更新時に呼ばれる
     public func peripheral(_ peripheral: CBPeripheral,
                     didUpdateValueFor characteristic: CBCharacteristic,
                     error: Error?)
     {
         if error != nil {
-            print("データ更新通知エラー: \(error)")
+            delegate?.bleDataExchangeError(error: error!)
             return
         }
-        
-        print("データ更新！ characteristic UUID: \(characteristic.uuid), value: \(characteristic.value)")
+        delegate?.receive(data: characteristic.value)
     }
 
-    
-    public func centralManager(_ central: CBCentralManager, willRestoreState dict: [String : Any]) {
-    }
-    
-    
-    
+    // MARK: - CBPeripheralManagerDelegate
     
     public func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
@@ -233,7 +220,6 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
             delegate?.bleDataExchangeError(error: error!)
             return
         }
-        // アドバタイズ開始
         self.startAdvertise()
     }
     
@@ -242,16 +228,12 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
             delegate?.bleDataExchangeError(error: error!)
             return
         }
-        // アドバタイズ開始成功
         delegate?.state(state: .AdvertiseSuccess)
     }
     
     public func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-        //Readリクエスト受信！
-        // CBMutableCharacteristicのvalueをCBATTRequestのvalueにセット
         request.value = self.characteristic.value
-        
-        // リクエストに応答
+        // response request
         self.peripheralManager.respond(
             to: request,
             withResult: .success
@@ -260,17 +242,12 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
     }
     
     public func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-//        print("Notify開始リクエストを受信")
-        //初期値を送信
+        //send init data
         send(data: initData)
-        
         delegate?.state(state: .StartNotify)
     }
     
     public func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-//        print("Notify停止リクエストを受信")
-        print("Notify中のセントラル: \(self.characteristic.subscribedCentrals)")
-        
         delegate?.state(state: .StopNotify)
     }
     
@@ -278,18 +255,17 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
         
     }
     
+    // MARK: - Advertise
+    
     private func startAdvertise() {
-        
-        // アドバタイズメントデータを作成する
         let advertisementData = [CBAdvertisementDataLocalNameKey: localNameKey,
                                  CBAdvertisementDataServiceUUIDsKey: _serviceUUID
             ] as [String : Any]
-        // アドバタイズ開始
+
         self.peripheralManager.startAdvertising(advertisementData)
     }
     
     private func stopAdvertise () {
-        // アドバタイズ停止
         if let peripheral = self.peripheralManager {
             if peripheral.isAdvertising {
                 peripheral.stopAdvertising()
@@ -300,10 +276,7 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
     }
     
     private func publishservice () {
-        // サービスを作成
         let service = CBMutableService(type: _serviceUUID[0], primary: true)
-        
-        // キャラクタリスティックを作成
         
         self.characteristic = CBMutableCharacteristic(
             type: _readUUID,
@@ -326,15 +299,13 @@ public class BleDataExchange: NSObject, CBPeripheralManagerDelegate, CBCentralMa
             permissions: [CBAttributePermissions.writeable]
         )
         
-        // キャラクタリスティックをサービスにセット
         service.characteristics = [
             self.characteristic,
             characteristicWrite
         ]
         
-        // サービスを追加
         self.peripheralManager.add(service)
-        // 初期値
+
         let sendData = initData.data(using: String.Encoding.utf8)
         self.characteristic.value = sendData
     }
