@@ -1,0 +1,10 @@
+framework module BleDataExchange {
+  umbrella header "BleDataExchange.h"
+
+  export *
+  module * { export * }
+}
+
+module BleDataExchange.Swift {
+    header "BleDataExchange-Swift.h"
+}
