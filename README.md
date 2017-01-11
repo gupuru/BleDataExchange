@@ -2,6 +2,12 @@
 
 Data exchange library using BLE.
 
+# How to use
+
+```
+github "gupuru/BleDataExchange"
+```
+
 # Usage
 
 ## Start
